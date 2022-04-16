@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 16-Apr-2022 at 15:12:07 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>C:\Program Files\Java\jre1.8.0_271</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "py": "1.11.0", "pytest": "7.1.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.19041-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.1.1", "metadata": "2.0.1", "pytest_check": "1.0.5"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.9.4</td></tr></table>
+    <h2>Summary</h2>
+    <p>18 tests ran in 7.16 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">14 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">4 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_postData_negative</td>
+          <td class="col-duration">0.75</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">FAILURE: <br/>assert 422 == 200<br/>REST API Testing\test_RESTAPItesting.py:36 in test_postData_negative() -&gt; pytest_check.equal(adddata_response.json()[&quot;code&quot;], 200)<br/>FAILURE: <br/>assert 401 == 200<br/>REST API Testing\test_RESTAPItesting.py:52 in test_postData_negative() -&gt; pytest_check.equal(adddata_response.json()[&quot;code&quot;], 200)<br/>------------------------------------------------------------<br/>Failed Checks: 2<br/> ------------------------------Captured stdout call------------------------------ <br/>Negative scenario1 for POST request. Posting incomplete json format
+Total user count before adding is 3863
+can&#x27;t be blank
+User has not been added
+Negative scenario2 for POST request. Posting with invalid access token
+Total user count before adding is 3863
+Authentication failed
+User has not been added
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_putData_negative</td>
+          <td class="col-duration">0.30</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">FAILURE: <br/>assert 404 == 200<br/>REST API Testing\test_RESTAPItesting.py:117 in test_putData_negative() -&gt; pytest_check.equal(editdata_response.json()[&quot;code&quot;], 200)<br/>FAILURE: <br/>assert 404 == 200<br/>REST API Testing\test_RESTAPItesting.py:128 in test_putData_negative() -&gt; pytest_check.equal(code, 200)<br/>------------------------------------------------------------<br/>Failed Checks: 2<br/> ------------------------------Captured stdout call------------------------------ <br/>Negative scenario3 for PUT / edit request. Posting with invalid user id.
+404
+Resource not found
+User information has not been modified
+Negative scenario4 for PUT / edit request. Posting with invalid access code.
+Resource not found
+User information has not been modified
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_deleteData_negative</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">FAILURE: <br/>assert 404 == 200<br/>REST API Testing\test_RESTAPItesting.py:144 in test_deleteData_negative() -&gt; pytest_check.equal(deletedata_response.json()[&quot;code&quot;], 200)<br/>------------------------------------------------------------<br/>Failed Checks: 1<br/> ------------------------------Captured stdout call------------------------------ <br/>Negative scenario5 for delete request. Posting with invalid access code.
+Resource not found
+User information has not been deleted
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_getData_negative</td>
+          <td class="col-duration">0.85</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">FAILURE: <br/>assert 0 &gt; 0<br/>REST API Testing\test_RESTAPItesting.py:168 in test_getData_negative() -&gt; pytest_check.greater(json_response[&quot;meta&quot;][&quot;pagination&quot;][&quot;total&quot;],0)<br/>FAILURE: <br/>assert 0 &gt; 0<br/>REST API Testing\test_RESTAPItesting.py:168 in test_getData_negative() -&gt; pytest_check.greater(json_response[&quot;meta&quot;][&quot;pagination&quot;][&quot;total&quot;],0)<br/>FAILURE: <br/>assert 0 &gt; 0<br/>REST API Testing\test_RESTAPItesting.py:168 in test_getData_negative() -&gt; pytest_check.greater(json_response[&quot;meta&quot;][&quot;pagination&quot;][&quot;total&quot;],0)<br/>FAILURE: <br/>assert 0 &gt; 0<br/>REST API Testing\test_RESTAPItesting.py:168 in test_getData_negative() -&gt; pytest_check.greater(json_response[&quot;meta&quot;][&quot;pagination&quot;][&quot;total&quot;],0)<br/>FAILURE: <br/>assert 0 &gt; 0<br/>REST API Testing\test_RESTAPItesting.py:168 in test_getData_negative() -&gt; pytest_check.greater(json_response[&quot;meta&quot;][&quot;pagination&quot;][&quot;total&quot;],0)<br/>------------------------------------------------------------<br/>Failed Checks: 5<br/> ------------------------------Captured stdout call------------------------------ <br/>Negative scenario6 for Get request. Trying to retrieve user data by id after data got deleted.
+{&#x27;code&#x27;: 200, &#x27;meta&#x27;: {&#x27;pagination&#x27;: {&#x27;total&#x27;: 0, &#x27;pages&#x27;: 0, &#x27;page&#x27;: 1, &#x27;limit&#x27;: 20}}, &#x27;data&#x27;: []}
+User information for id 5061 has not retrieved successfully
+{&#x27;code&#x27;: 200, &#x27;meta&#x27;: {&#x27;pagination&#x27;: {&#x27;total&#x27;: 0, &#x27;pages&#x27;: 0, &#x27;page&#x27;: 1, &#x27;limit&#x27;: 20}}, &#x27;data&#x27;: []}
+User information for id 5062 has not retrieved successfully
+{&#x27;code&#x27;: 200, &#x27;meta&#x27;: {&#x27;pagination&#x27;: {&#x27;total&#x27;: 0, &#x27;pages&#x27;: 0, &#x27;page&#x27;: 1, &#x27;limit&#x27;: 20}}, &#x27;data&#x27;: []}
+User information for id 5063 has not retrieved successfully
+{&#x27;code&#x27;: 200, &#x27;meta&#x27;: {&#x27;pagination&#x27;: {&#x27;total&#x27;: 0, &#x27;pages&#x27;: 0, &#x27;page&#x27;: 1, &#x27;limit&#x27;: 20}}, &#x27;data&#x27;: []}
+User information for id 5064 has not retrieved successfully
+{&#x27;code&#x27;: 200, &#x27;meta&#x27;: {&#x27;pagination&#x27;: {&#x27;total&#x27;: 0, &#x27;pages&#x27;: 0, &#x27;page&#x27;: 1, &#x27;limit&#x27;: 20}}, &#x27;data&#x27;: []}
+User information for id 5065 has not retrieved successfully
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_postData[get_data0]</td>
+          <td class="col-duration">0.47</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Total user count before adding is 3858
+User has been added successfully
+Total user count after adding user 5061 is 3859
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_postData[get_data1]</td>
+          <td class="col-duration">0.52</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Total user count before adding is 3859
+User has been added successfully
+Total user count after adding user 5062 is 3860
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_postData[get_data2]</td>
+          <td class="col-duration">0.48</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Total user count before adding is 3860
+User has been added successfully
+Total user count after adding user 5063 is 3861
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_postData[get_data3]</td>
+          <td class="col-duration">0.48</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Total user count before adding is 3861
+User has been added successfully
+Total user count after adding user 5064 is 3862
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_postData[get_data4]</td>
+          <td class="col-duration">0.47</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Total user count before adding is 3862
+User has been added successfully
+Total user count after adding user 5065 is 3863
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_getData</td>
+          <td class="col-duration">0.76</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>User information for id 5061 has been retrieved successfully
+User information for id 5062 has been retrieved successfully
+User information for id 5063 has been retrieved successfully
+User information for id 5064 has been retrieved successfully
+User information for id 5065 has been retrieved successfully
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_getresponse[get_data0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_getresponse[get_data1]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_getresponse[get_data2]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_getresponse[get_data3]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_getresponse[get_data4]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_testresponse</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Actual and expected response content is matching
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_putData</td>
+          <td class="col-duration">0.80</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>User information for id 5061 has been modified successfully
+Actual and expected response content after modification is matching
+User information for id 5062 has been modified successfully
+Actual and expected response content after modification is matching
+User information for id 5063 has been modified successfully
+Actual and expected response content after modification is matching
+User information for id 5064 has been modified successfully
+Actual and expected response content after modification is matching
+User information for id 5065 has been modified successfully
+Actual and expected response content after modification is matching
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">REST API Testing/test_RESTAPItesting.py::Test_api::test_deleteData</td>
+          <td class="col-duration">0.79</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;code&#x27;: 204, &#x27;meta&#x27;: None, &#x27;data&#x27;: None}
+User information for id 5061 has been deleted successfully
+{&#x27;code&#x27;: 204, &#x27;meta&#x27;: None, &#x27;data&#x27;: None}
+User information for id 5062 has been deleted successfully
+{&#x27;code&#x27;: 204, &#x27;meta&#x27;: None, &#x27;data&#x27;: None}
+User information for id 5063 has been deleted successfully
+{&#x27;code&#x27;: 204, &#x27;meta&#x27;: None, &#x27;data&#x27;: None}
+User information for id 5064 has been deleted successfully
+{&#x27;code&#x27;: 204, &#x27;meta&#x27;: None, &#x27;data&#x27;: None}
+User information for id 5065 has been deleted successfully
+<br/></div></td></tr></tbody></table></body></html>
