@@ -167,7 +167,7 @@ class Test_api:
             json_response = response.json()
             pytest_check.greater(json_response["meta"]["pagination"]["total"],0)
             print(json_response)
-            print("User information for id "+f'{data_id}'+" has not retrieved successfully")
+            print("User information for id "+f'{data_id}'+" has not retrieved")
 
 
     @pytest.fixture(params=[{"name":"Ramesh Kale","gender": "male","status": "active"}, {"name":"Hema Malini","gender": "female","status": "active"}, {"name":"Vishnu Bramhe","gender": "male","status": "active"}, {"name":"Anushka Sharma","gender": "female","status": "inactive"},{"name":"Steve Austin","gender": "male","status": "active"},])
